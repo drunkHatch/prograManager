@@ -1,0 +1,50 @@
+/***************************************************************/
+/***************************************************************
+Program design:
+while(1):
+	1, enter command
+	2, analyze command -> fixed size & nonfixed
+		2.1 for run, check space in string to find argument number
+		2.2 for the rest, just do regular analyzation
+	3, execute command
+		3.1, list all running program
+		3.2, run program with at most 4 arguments
+		3.3, suspend just sends STGSTOP to program
+		3.4, resume just sends SIGCONT to program
+		3.5, terminate just send SIGKILL to program
+		3.6, exit: terminate all running bro and then exit
+		3.7, quit: exit without terminating processes
+
+Points:
+	1, need struct for all running programs
+		1.1, struct includes index(job#), pid, command
+		1.2, struct stores in a 32-length array
+	2, to analyze:
+		2.1, 1 function to analyze command type and return type #(1,2,3)
+		2.2, for run, it needs another function to analyze arguments #
+	3, prepare command type(1,2,3) and splited command details
+		3.1, list needs a method to print the 32-length struct array, no need for signal
+		3.2, run:
+			3.2.1, run stores job#, pid, command to the 32 array
+			3.2.2, then run has a function to fix command to all kinds of execlp function(adapter)
+			3.2.3, after successfully exec, update pid
+			3.2.4, (As mentioned above, program a1jobs admits at most MAXJOBS jobs (the count includes jobs that the user has explicitly terminated). )
+		3.3, suspend sends signal to a specific child process
+			3.3.1, suspend needs a function to translate jobNo to pid
+			3.3.2, a function to send SIGSTOP(arguments: signal type & pid)
+		3.4, resume same as suspend
+		3.5, terminate same as resume and suspend
+		3.6, exit:
+			3.6.1, run terminate multiple times -> try to make terminate a single function
+			3.6.2, change loop checker
+		3.7, quit just shut down program directly
+
+More Tips:
+	1, exec adapter needs five different exec syscall
+	2, a function to find corresponding process via jobNo is needed
+	3, needs a function to send signal:
+		quick example:sig_sender(signal type, pid)
+	4, signal sender function needs some utility function to combine its string
+	5, try to make everything of terminate in a single function
+		-> it helps exit command to run easily
+***************************************************************/
