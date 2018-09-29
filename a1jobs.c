@@ -19,32 +19,40 @@ int split(char inStr[],  char token[][MAXWORD], char fs[]);
 
 #define MAXJOBS  32
 
-// pid list
-int pid_list[32];
+typedef struct{
+	int running_status; // 0 -> terminated, 1 -> running, -1 ->empty
+	int jobNo;
+	int pid;
+	char command[256];
+} Program;
 
-//user input process number
-int input_pnum;
+/**********************************************************************/
+/*****************         Global Variable         ********************/
+/**********************************************************************/
 
-//number of process running (maximun 32)
-int process=0;
 
-//store parent process id
-int parent;
+int pid_list[32]; // pid list
+int input_pnum; //user input process number
+int process=0; //number of process running (maximun 32)
+int parent; //store parent process id
+Program executed_programs[MAXJOBS]; // array to record executed program
 
+
+/**********************************************************************/
+/*****************      Function Declaration       ********************/
+/**********************************************************************/
+
+void print_non_teminated_jobs();
+void init_jobs_array();
+int argument_number_finder(char *raw_string);
 
 void quit (int code){
-
-	return;
 }
 
 void stop (int code){
-	printf("aaaaaaaaastop");
-	return;
 }
 
 void cont (int code){
-	printf("aaaaaaaaacont");
-	return;
 }
 
 static void terminate(int signo){
@@ -63,47 +71,10 @@ static void terminate(int signo){
 	_exit(0);
 }
 
+// struct to store program info
 
-
-int run(char *cmd,int* plist){
-	int child, pid;
-
-	//check if there are too many jobs
-	if (process>=MAXJOBS){fprintf(stderr,"error: too many jobs are running (maximun 32)\n");}
-
-	//fork a child
-	child = fork();
-    printf("this is the pid of child:%d\n",child);
-
-	plist[process] = child;
-	if (child == 0){
-
-        signal(SIGUSR1,terminate);
-
-		pid = getpid();
-		plist[process] = pid;
-		//execlp(cmd,"\0");
-		system(cmd);
-        
-
-		printf("!   child      :%d\n",pid);
-
-	}
-    /*
-    if ((pid = fork()) == 0) {
-        signal(SIGINT, sigint_handler);
-        printf("This is children %d\n", getpid());
-        sleep(1);
-        exit(0);
-    }
-    */
-
-	process += 1;
-	return pid;
-}
 
 int main(int argc, char* argv[]){
-
 	// get the starting time of the program
 	clock_t st_time;
 	clock_t en_time;
@@ -121,48 +92,63 @@ int main(int argc, char* argv[]){
 	rl.rlim_max = TIMELIM;
 	if (setrlimit(RLIMIT_CPU, &rl) == -1) fprintf(stderr,"set limit error\n");
 
-
 	//set signal
 	signal(SIGSTOP,stop);
 	signal(SIGCONT,cont);
 	signal(SIGQUIT,quit);
     signal(SIGUSR1,terminate);
 
-
-
+	// init array variables
+	init_jobs_array();
 
 	//main loop-------------------
 	//count number of process
 
 	while(getpid()==parent){
 
-		char oricmd[MAXLINE];
-		char sp_cmd[MAXLINE][MAXWORD];
-		// char strexit[8];
+		char raw_command[MAXLINE], copy_raw_command[MAXLINE];
+		char splited_command[MAXLINE][MAXWORD];
 
-		// strcpy(strexit,"exit");
-
+		// 1, enter command
 		printf("a1jobs[%d]: ",parent);
-		scanf(" %132[^\n]",oricmd);
-		split(oricmd,sp_cmd," []{}()=");
-		char* cmd = sp_cmd[0];
+		scanf(" %132[^\n]",raw_command);
+
+		// 2, analyze command -> fixed size & nonfixed
+		split(raw_command,splited_command," []{}()=");
+		strcpy(copy_raw_command, raw_command);
+		char* cmd = splited_command[0];
 
 		if(strcmp(cmd, "list")==0 ){
-			printf("list input");
-			//system("xclock -geometry 200x200 -update 2");
-		}else if (strcmp(cmd, "run")==0 ){
-			// system("xclock -geometry 200x200 -update 2");
-			//printf("run input");
-			run(&oricmd[3],pid_list);
-		}else if (strcmp(cmd, "terminate")==0 ){
-			sscanf(sp_cmd[1],"%d",&input_pnum);
-			printf("terminate input%d",input_pnum);
-
-		}else if (strcmp(cmd, "quit")==0 ){
-
-			break;
+			printf("Enter list scope\n");
+			print_non_teminated_jobs();
 		}
+		else if (strcmp(cmd, "run")==0 ){
+			int argument_count = 0;
+			printf("Enter run scope\n");
+			// a function to check argument length
+			argument_count = argument_number_finder(copy_raw_command) - 1;
+			// deliver length to run function
+			run(&raw_command[3],pid_list);
+		}
+		else if (strcmp(cmd, "terminate")==0 ){
+			printf("Enter terminate scope\n");\
+			sscanf(splited_command[1],"%d",&input_pnum);
+			printf("terminate input%d",input_pnum);
+		}
+		else if (strcmp(cmd, "quit")==0 ){
+			printf("Enter quit scope\n");
 
+		}
+		else if (strcmp(cmd, "suspend")==0 ){
+			printf("Enter suspend scope\n");
+
+		}
+		else if (strcmp(cmd, "resume")==0 ){
+			printf("Enter resume scope\n");
+		}
+		else if (strcmp(cmd, "exit")==0 ){
+			printf("Enter exit scope\n");
+		}
 	}
 	//main loop ends--------------
 
@@ -178,10 +164,85 @@ int main(int argc, char* argv[]){
 	//print cpu runtime
 
 	return 0;
-
-
-
 }
+
+int run(char *splited_raw_command, int option_number, char *raw_command){
+	int new_child_pid;
+	// depend on option number, run another function to call execlp
+	switch (option_number) {
+		case 0:
+			// execlp(0)
+		case 1:
+			// execlp(1)
+		case 2:
+			// execlp(2)
+		case 3:
+			// execlp(3)
+		case 4:
+			// execlp(4)
+	}
+	// after calling execlp, enroll new jobs in job array (a function)
+
+
+	int child, pid;
+
+	//check if there are too many jobs
+	if (process>=MAXJOBS){fprintf(stderr,"error: too many jobs are running (maximun 32)\n");}
+
+	//fork a child
+	child = fork();
+    printf("this is the pid of child:%d\n",child);
+
+	plist[process] = child;
+	if (child == 0){
+        signal(SIGUSR1,terminate);
+		pid = getpid();
+		plist[process] = pid;
+		//execlp(cmd,"\0");
+		system(cmd);
+		printf("!   child      :%d\n",pid);
+	}
+
+	process += 1;
+	return pid;
+}
+
+
+/**********************************************************************/
+/*****************         Utility Function        ********************/
+/**********************************************************************/
+
+int argument_number_finder(char *raw_string){
+	int count = 0;
+
+	for (int i = 0; raw_string[i]; i++) {
+		if (raw_string[i] == ' ') {
+			count++;
+		}
+	}
+	return count;
+}
+
+// init variables of global job array
+void init_jobs_array(){
+	for (int i = 0; i < MAXJOBS; i++) {
+		if (executed_programs[i].running_status == 1) {
+			executed_programs[i].jobNo = i;
+		 	executed_programs[i].pid = -1;
+			executed_programs[i].running_status = -1;
+		}
+	}
+}
+
+void print_non_teminated_jobs(){
+	for (int i = 0; i < MAXJOBS; i++) {
+		// if program is not terminated then print info
+		if (executed_programs[i].running_status == 1) {
+			printf("JobNo: %d\n\tpid: %d\n\tcmd: '%s'\n", executed_programs[i].jobNo, executed_programs[i].pid, executed_programs[i].command);
+		}
+	}
+}
+
 
 
 int split(char inStr[],  char token[][MAXWORD], char fs[])
