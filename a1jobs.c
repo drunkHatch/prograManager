@@ -30,7 +30,7 @@ typedef struct{
 /*****************         Global Variable         ********************/
 /**********************************************************************/
 
-
+int child_finished = 0;
 int pid_list[32]; // pid list
 int input_pnum; //user input process number
 int process=0; //number of process running (maximun 32)
@@ -45,6 +45,9 @@ Program executed_programs[MAXJOBS]; // array to record executed program
 void print_non_teminated_jobs();
 void init_jobs_array();
 int argument_number_finder(char *raw_string);
+void exec_other_program(int option_number, char splited_raw_command[][32]);
+void run(char splited_raw_command[][32], int option_number, char *raw_command);
+void enroll_new_job(int pid, char command[256]);
 
 void quit (int code){
 }
@@ -114,21 +117,23 @@ int main(int argc, char* argv[]){
 		scanf(" %132[^\n]",raw_command);
 
 		// 2, analyze command -> fixed size & nonfixed
-		split(raw_command,splited_command," []{}()=");
 		strcpy(copy_raw_command, raw_command);
+		split(raw_command,splited_command," []{}()=");
 		char* cmd = splited_command[0];
 
 		if(strcmp(cmd, "list")==0 ){
 			printf("Enter list scope\n");
 			print_non_teminated_jobs();
 		}
+		// TODO add MAXJOBS chneck later
 		else if (strcmp(cmd, "run")==0 ){
 			int argument_count = 0;
 			printf("Enter run scope\n");
 			// a function to check argument length
 			argument_count = argument_number_finder(copy_raw_command) - 1;
 			// deliver length to run function
-			run(&raw_command[3],pid_list);
+			//run(&raw_command[3],pid_list);
+			run(splited_command, argument_count, copy_raw_command);
 		}
 		else if (strcmp(cmd, "terminate")==0 ){
 			printf("Enter terminate scope\n");\
@@ -166,51 +171,59 @@ int main(int argc, char* argv[]){
 	return 0;
 }
 
-int run(char *splited_raw_command, int option_number, char *raw_command){
+void run(char splited_raw_command[][32], int option_number, char *raw_command){
 	int new_child_pid;
+
+	new_child_pid = fork();
 	// depend on option number, run another function to call execlp
-	switch (option_number) {
-		case 0:
-			// execlp(0)
-		case 1:
-			// execlp(1)
-		case 2:
-			// execlp(2)
-		case 3:
-			// execlp(3)
-		case 4:
-			// execlp(4)
+	if (!new_child_pid) {
+		exec_other_program(option_number, splited_raw_command);
 	}
+	while (!child_finished) {
+		sleep(1);
+	}
+	child_finished = 0;
 	// after calling execlp, enroll new jobs in job array (a function)
+	enroll_new_job(new_child_pid, raw_command);
 
-
-	int child, pid;
-
-	//check if there are too many jobs
-	if (process>=MAXJOBS){fprintf(stderr,"error: too many jobs are running (maximun 32)\n");}
-
-	//fork a child
-	child = fork();
-    printf("this is the pid of child:%d\n",child);
-
-	plist[process] = child;
-	if (child == 0){
-        signal(SIGUSR1,terminate);
-		pid = getpid();
-		plist[process] = pid;
-		//execlp(cmd,"\0");
-		system(cmd);
-		printf("!   child      :%d\n",pid);
-	}
-
-	process += 1;
-	return pid;
 }
 
 
 /**********************************************************************/
 /*****************         Utility Function        ********************/
 /**********************************************************************/
+//int running_status; // 0 -> terminated, 1 -> running, -1 ->empty
+//int jobNo;
+//int pid;
+//char command[256];
+
+void enroll_new_job(int pid, char command[256]){
+	for (int i = 0; i < MAXJOBS; i++) {
+		// find empty slot for new job
+		if (executed_programs[i].running_status == -1) {
+		 	executed_programs[i].pid = pid;
+			executed_programs[i].running_status = 1;
+			strcpy(executed_programs[i].command, command);
+		}
+	}
+}
+
+void exec_other_program(int option_number, char splited_raw_command[][32]){
+	switch (option_number) {
+		case 0:
+			execlp(splited_raw_command[1], splited_raw_command[1], (char *) NULL);
+		case 1:
+			execlp(splited_raw_command[1], splited_raw_command[1], splited_raw_command[2], (char *) NULL);
+		case 2:
+			execlp(splited_raw_command[1], splited_raw_command[1], splited_raw_command[2], splited_raw_command[3],(char *) NULL);
+		case 3:
+			execlp(splited_raw_command[1], splited_raw_command[1], splited_raw_command[2], splited_raw_command[3],splited_raw_command[4],(char *) NULL);
+		case 4:
+			execlp(splited_raw_command[1], splited_raw_command[1], splited_raw_command[2], splited_raw_command[3],splited_raw_command[4],splited_raw_command[5],(char *) NULL);
+	}
+
+	child_finished = 1;
+}
 
 int argument_number_finder(char *raw_string){
 	int count = 0;
