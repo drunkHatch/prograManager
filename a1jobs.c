@@ -177,11 +177,10 @@ void run(char splited_raw_command[][32], int option_number, char *raw_command){
 	new_child_pid = fork();
 	// depend on option number, run another function to call execlp
 	if (!new_child_pid) {
+		printf("This is child: other program runs\n");
 		exec_other_program(option_number, splited_raw_command);
 	}
-	while (!child_finished) {
-		sleep(1);
-	}
+	sleep(1);
 	child_finished = 0;
 	// after calling execlp, enroll new jobs in job array (a function)
 	enroll_new_job(new_child_pid, raw_command);
@@ -204,6 +203,7 @@ void enroll_new_job(int pid, char command[256]){
 		 	executed_programs[i].pid = pid;
 			executed_programs[i].running_status = 1;
 			strcpy(executed_programs[i].command, command);
+			break;
 		}
 	}
 }
@@ -222,7 +222,6 @@ void exec_other_program(int option_number, char splited_raw_command[][32]){
 			execlp(splited_raw_command[1], splited_raw_command[1], splited_raw_command[2], splited_raw_command[3],splited_raw_command[4],splited_raw_command[5],(char *) NULL);
 	}
 
-	child_finished = 1;
 }
 
 int argument_number_finder(char *raw_string){
@@ -239,11 +238,9 @@ int argument_number_finder(char *raw_string){
 // init variables of global job array
 void init_jobs_array(){
 	for (int i = 0; i < MAXJOBS; i++) {
-		if (executed_programs[i].running_status == 1) {
-			executed_programs[i].jobNo = i;
-		 	executed_programs[i].pid = -1;
-			executed_programs[i].running_status = -1;
-		}
+		executed_programs[i].jobNo = i;
+	 	executed_programs[i].pid = -1;
+		executed_programs[i].running_status = -1;
 	}
 }
 

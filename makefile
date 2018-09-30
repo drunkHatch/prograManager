@@ -1,6 +1,6 @@
 run:
-    gcc -std=c99 -o test a1jobs.c
+	gcc -std=c99 -o test a1jobs.c
 exe:
-    ./test
+	./test
 clean:
-    rm test
+	rm test
