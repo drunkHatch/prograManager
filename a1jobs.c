@@ -63,9 +63,10 @@ void init_jobs_array();
 int argument_number_finder(char *raw_string);
 void exec_other_program(int option_number, char splited_raw_command[][32]);
 void run(char splited_raw_command[][32], int option_number, char *raw_command);
-void enroll_new_job(pid_t pid, char command[256]);
+int enroll_new_job(pid_t pid, char command[256]);
 void signal_sender(int jobNo, int signal_type);
 void my_kill(pid_t pid, int sig);
+int having_empty_room();
 
 void quit (int code){
 }
@@ -159,11 +160,14 @@ int main(int argc, char* argv[]){
 			sscanf(splited_command[1],"%d",&input_pnum);
 			signal_sender(input_pnum, 3);
 
+			executed_programs[input_pnum].running_status = 0;
+
 			printf("terminate input%d",input_pnum);
 		}
 		else if (strcmp(cmd, "quit")==0 ){
 			printf("Enter quit scope\n");
 
+			exit(0);
 		}
 		else if (strcmp(cmd, "suspend")==0 ){
 			printf("Enter suspend scope\n");
@@ -180,6 +184,14 @@ int main(int argc, char* argv[]){
 		}
 		else if (strcmp(cmd, "exit")==0 ){
 			printf("Enter exit scope\n");
+
+			for (int i = 0; i < MAXJOBS; i++) {
+				// find empty slot for new job
+				if (executed_programs[i].running_status == 1) {
+				 	signal_sender(i, 3);
+				}
+			}
+			exit(0);
 		}
 	}
 	//main loop ends--------------
@@ -201,16 +213,24 @@ int main(int argc, char* argv[]){
 void run(char splited_raw_command[][32], int option_number, char *raw_command){
 	int new_child_pid;
 
-	new_child_pid = fork();
-	// depend on option number, run another function to call execlp
-	if (!new_child_pid) {
-		printf("This is child: other program runs\n");
-		exec_other_program(option_number, splited_raw_command);
+	if (having_empty_room()) {
+		new_child_pid = fork();
+		// depend on option number, run another function to call execlp
+
+		if (!new_child_pid) {
+			printf("This is child: other program runs\n");
+			exec_other_program(option_number, splited_raw_command);
+		}
+		sleep(1);
+		child_finished = 0;
+		enroll_new_job(new_child_pid, raw_command);
 	}
-	sleep(1);
-	child_finished = 0;
+	else{
+		fprintf(stderr,"Reach maximum job limit, new job is not executed\n");
+	}
+
 	// after calling execlp, enroll new jobs in job array (a function)
-	enroll_new_job(new_child_pid, raw_command);
+
 
 }
 
@@ -236,12 +256,6 @@ void signal_sender(int jobNo, int signal_type){
 }
 
 void my_kill(pid_t pid, int sig){
-	char sig_k[10];
-	char pid_k[64];
-	char command[256] = "kill -";
-
-
-
 	switch (sig) {
 		case 17:
 			kill(pid, SIGSTOP); break;//strcpy(sig_k, "-SIGSTOP");
@@ -250,26 +264,30 @@ void my_kill(pid_t pid, int sig){
 		case 15:
 			kill(pid, SIGKILL); break;//strcpy(sig_k, "-SIGKILL");
 	}
-	/*
-	sprintf(pid_k, " %d", pid);
-	strcat(command, sig_k);
-	strcat(command, pid_k);
-
-	printf("%s\n", command);
-	execlp("kill", "kill",sig_k, pid_k, (char *) NULL);
-	*/
 }
 
-void enroll_new_job(pid_t pid, char command[256]){
+int enroll_new_job(pid_t pid, char command[256]){
 	for (int i = 0; i < MAXJOBS; i++) {
 		// find empty slot for new job
 		if (executed_programs[i].running_status == -1) {
 		 	executed_programs[i].pid = pid;
 			executed_programs[i].running_status = 1;
 			strcpy(executed_programs[i].command, command);
-			break;
+			return 1;
 		}
 	}
+	return 0;
+}
+
+int having_empty_room(){
+	for (int i = 0; i < MAXJOBS; i++) {
+		// find empty slot for new job
+		if (executed_programs[i].running_status == -1) {
+
+			return 1;
+		}
+	}
+	return 0;
 }
 
 void exec_other_program(int option_number, char splited_raw_command[][32]){
