@@ -8,6 +8,22 @@
 #include <signal.h>
 #include <setjmp.h>
 #include <sys/resource.h>
+
+#include <stdio.h>
+#include <unistd.h>
+#include <time.h>
+#include <stdlib.h>
+#include <dirent.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h> //optional
+#include <sys/inotify.h>
+#include <inttypes.h>
+#include <limits.h>
+#include <errno.h>
+#include <sys/time.h>
+
 //the time limit is 600 second
 #define TIMELIM 1
 
@@ -22,7 +38,7 @@ int split(char inStr[],  char token[][MAXWORD], char fs[]);
 typedef struct{
 	int running_status; // 0 -> terminated, 1 -> running, -1 ->empty
 	int jobNo;
-	int pid;
+	pid_t pid;
 	char command[256];
 } Program;
 
@@ -31,7 +47,7 @@ typedef struct{
 /**********************************************************************/
 
 int child_finished = 0;
-int pid_list[32]; // pid list
+pid_t pid_list[32]; // pid list
 int input_pnum; //user input process number
 int process=0; //number of process running (maximun 32)
 int parent; //store parent process id
@@ -47,7 +63,9 @@ void init_jobs_array();
 int argument_number_finder(char *raw_string);
 void exec_other_program(int option_number, char splited_raw_command[][32]);
 void run(char splited_raw_command[][32], int option_number, char *raw_command);
-void enroll_new_job(int pid, char command[256]);
+void enroll_new_job(pid_t pid, char command[256]);
+void signal_sender(int jobNo, int signal_type);
+void my_kill(pid_t pid, int sig);
 
 void quit (int code){
 }
@@ -64,7 +82,7 @@ static void terminate(int signo){
 
     printf("%d                 \n", signo);
     /*
-	strcpy(cmd,"kill -s 9 \0");
+	strcpy(cmd,"my_kill -s 9 \0");
     snprintf( pid_s, 20, "%d", pid_list[input_pnum] );
 	strcat(cmd,pid_s);
 	system(cmd);
@@ -96,10 +114,10 @@ int main(int argc, char* argv[]){
 	if (setrlimit(RLIMIT_CPU, &rl) == -1) fprintf(stderr,"set limit error\n");
 
 	//set signal
-	signal(SIGSTOP,stop);
-	signal(SIGCONT,cont);
-	signal(SIGQUIT,quit);
-    signal(SIGUSR1,terminate);
+	//signal(SIGSTOP,stop);
+	//signal(SIGCONT,cont);
+	//signal(SIGQUIT,quit);
+    //signal(SIGUSR1,terminate);
 
 	// init array variables
 	init_jobs_array();
@@ -136,8 +154,11 @@ int main(int argc, char* argv[]){
 			run(splited_command, argument_count, copy_raw_command);
 		}
 		else if (strcmp(cmd, "terminate")==0 ){
-			printf("Enter terminate scope\n");\
+			printf("Enter terminate scope\n");
+
 			sscanf(splited_command[1],"%d",&input_pnum);
+			signal_sender(input_pnum, 3);
+
 			printf("terminate input%d",input_pnum);
 		}
 		else if (strcmp(cmd, "quit")==0 ){
@@ -147,9 +168,15 @@ int main(int argc, char* argv[]){
 		else if (strcmp(cmd, "suspend")==0 ){
 			printf("Enter suspend scope\n");
 
+			sscanf(splited_command[1],"%d",&input_pnum);
+			signal_sender(input_pnum, 1);
+
 		}
 		else if (strcmp(cmd, "resume")==0 ){
 			printf("Enter resume scope\n");
+
+			sscanf(splited_command[1],"%d",&input_pnum);
+			signal_sender(input_pnum, 2);
 		}
 		else if (strcmp(cmd, "exit")==0 ){
 			printf("Enter exit scope\n");
@@ -193,10 +220,47 @@ void run(char splited_raw_command[][32], int option_number, char *raw_command){
 /**********************************************************************/
 //int running_status; // 0 -> terminated, 1 -> running, -1 ->empty
 //int jobNo;
-//int pid;
+//pid_t pid;
 //char command[256];
 
-void enroll_new_job(int pid, char command[256]){
+// signal_type: 1 -> suspend, 2 -> resume, 3 -> terminate
+void signal_sender(int jobNo, int signal_type){
+	switch (signal_type) {
+		case 1:
+			my_kill(executed_programs[jobNo].pid, 17); break; // suspend
+		case 2:
+			my_kill(executed_programs[jobNo].pid, 19); break;	// resume
+		case 3:
+			my_kill(executed_programs[jobNo].pid, 15); break;// terminate
+	}
+}
+
+void my_kill(pid_t pid, int sig){
+	char sig_k[10];
+	char pid_k[64];
+	char command[256] = "kill -";
+
+
+
+	switch (sig) {
+		case 17:
+			kill(pid, SIGSTOP); break;//strcpy(sig_k, "-SIGSTOP");
+		case 19:
+			kill(pid, SIGCONT); break;//strcpy(sig_k, "-SIGCONT");
+		case 15:
+			kill(pid, SIGKILL); break;//strcpy(sig_k, "-SIGKILL");
+	}
+	/*
+	sprintf(pid_k, " %d", pid);
+	strcat(command, sig_k);
+	strcat(command, pid_k);
+
+	printf("%s\n", command);
+	execlp("kill", "kill",sig_k, pid_k, (char *) NULL);
+	*/
+}
+
+void enroll_new_job(pid_t pid, char command[256]){
 	for (int i = 0; i < MAXJOBS; i++) {
 		// find empty slot for new job
 		if (executed_programs[i].running_status == -1) {
